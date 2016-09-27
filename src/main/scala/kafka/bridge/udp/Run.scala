@@ -38,18 +38,18 @@ object Run extends App {
 
 class Listener(nextActor: ActorRef) extends Actor {
   import context.system
-  
+
   val conf = context.system.settings.config
 
   IO(Udp) ! Udp.Bind(self, new java.net.InetSocketAddress(
     conf.getString("bind.host"),
     conf.getInt("bind.port")))
- 
+
   def receive = {
     case Udp.Bound(local) ⇒
       context.become(ready(sender))
   }
- 
+
   def ready(socket: ActorRef): Receive = {
     case Udp.Received(data, remote) ⇒
       nextActor ! data.utf8String
@@ -63,7 +63,16 @@ class Generator(kafkaProps: java.util.Properties) extends Actor {
   val topic = context.system.settings.config.getString("topic")
 
   def receive = {
-    case message: String => 
-      producer.send(new KeyedMessage[Integer, String](topic, message))
+    case message: String =>
+      var mytopic = topic
+      var mymessage = message
+      // Extract the topic from the message
+      if(message.contains(",")) {
+        val parts = message.split(",", 2)
+        mytopic = parts(0)
+        mymessage = parts(1)
+      }
+
+      producer.send(new KeyedMessage[Integer, String](mytopic, mymessage))
   }
 }
